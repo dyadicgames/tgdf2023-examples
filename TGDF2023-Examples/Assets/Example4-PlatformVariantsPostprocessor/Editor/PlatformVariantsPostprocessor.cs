@@ -1,24 +1,28 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
-using UnityEditor.Build;
 using UnityEngine;
 
 namespace Example4
 {
-    public class PlatformVariantsPostprocessor : AssetPostprocessor, IActiveBuildTargetChanged
+    [InitializeOnLoad]
+    public class PlatformVariantsPostprocessor : AssetPostprocessor
     {
         private const string folderPath = "Assets/Example4-PlatformVariantsPostprocessor/Models/";
+        private const string customDependencyName = "PlatformVariantsPostprocessor";
 
         public int callbackOrder => 0;
 
-        public void OnActiveBuildTargetChanged(BuildTarget previousTarget, BuildTarget newTarget)
+        static PlatformVariantsPostprocessor()
         {
-            var assets = AssetDatabase.FindAssets($"t:model", new[] { folderPath });
-            foreach (var guid in assets)
-            {
-                AssetDatabase.ImportAsset(AssetDatabase.GUIDToAssetPath(guid));
-            }
+            // With the "InitializeOnLoad" attribute this static constructor will be called
+            // on editor start as well as when switching the active build target. This is all
+            // we need to keep our custom dependency up to date with the built target selection.
+
+            var hash = Hash128.Compute((int) EditorUserBuildSettings.activeBuildTarget);
+            AssetDatabase.RegisterCustomDependency(customDependencyName, hash);
+
+            Debug.Log($"Registered custom dependency '{customDependencyName}' (hash: {hash}).");
         }
 
         private void OnPostprocessModel(GameObject gameObject)
@@ -33,6 +37,11 @@ namespace Example4
             {
                 return;
             }
+
+            // We register our custom dependency for this asset here. Changing the hash
+            // of the custom dependency in the above constructor based on the active build
+            // target will trigger a re-import every time the build target changes.
+            context.DependsOnCustomDependency(customDependencyName);
 
             var removeList = new List<GameObject>();
             var suffix = string.Empty;
